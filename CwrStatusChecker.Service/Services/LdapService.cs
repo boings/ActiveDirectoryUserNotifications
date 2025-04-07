@@ -5,14 +5,10 @@ using System.DirectoryServices;
 using CwrStatusChecker.Models;
 using System.Runtime.Versioning;
 using Microsoft.Extensions.Logging;
+using System.Threading.Tasks;
 
 namespace CwrStatusChecker.Service.Services
 {
-    public interface ILdapService
-    {
-        List<User> GetUsersFromLdap(string ldapEndpoint);
-    }
-
     [SupportedOSPlatform("windows")]
     public class LdapService : ILdapService
     {
@@ -23,7 +19,7 @@ namespace CwrStatusChecker.Service.Services
             _logger = logger;
         }
 
-        public List<User> GetUsersFromLdap(string ldapEndpoint)
+        public async Task<List<User>> GetUsersFromLdap(string ldapEndpoint)
         {
             var users = new List<User>();
             
@@ -77,7 +73,7 @@ namespace CwrStatusChecker.Service.Services
                 throw;
             }
 
-            return users;
+            return await Task.FromResult(users);
         }
     }
 } 

@@ -1,12 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using CwrStatusChecker.Models;
 
 namespace CwrStatusChecker.Service.Services
 {
     public class TestLdapService : ILdapService
     {
-        public List<User> GetUsersFromLdap(string endpoint)
+        public async Task<List<User>> GetUsersFromLdap(string endpoint)
         {
             // Create different test users based on the endpoint
             var users = new List<User>();
@@ -117,7 +118,7 @@ namespace CwrStatusChecker.Service.Services
                 });
             }
 
-            return users;
+            return await Task.FromResult(users);
         }
     }
 } 

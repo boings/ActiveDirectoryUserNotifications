@@ -31,8 +31,14 @@ namespace CwrStatusChecker.Service
             _logger = logger;
             _configuration = configuration;
             _scopeFactory = scopeFactory;
-            _ldapEndpoints = _configuration.GetSection("LdapEndpoints").Get<string[]>() ?? Array.Empty<string>();
-            _isDevelopment = environment.IsDevelopment();
+            
+            var endpointsSection = _configuration.GetSection("LdapEndpoints");
+            var endpointsValue = endpointsSection.Value;
+            _ldapEndpoints = string.IsNullOrEmpty(endpointsValue) 
+                ? Array.Empty<string>() 
+                : endpointsValue.Split(',', StringSplitOptions.RemoveEmptyEntries);
+            
+            _isDevelopment = environment.EnvironmentName.Equals("Development", StringComparison.OrdinalIgnoreCase);
             _logger.LogInformation("Worker initialized with {count} LDAP endpoints", _ldapEndpoints.Length);
         }
 
@@ -42,24 +48,33 @@ namespace CwrStatusChecker.Service
             
             try
             {
-                _logger.LogInformation("Starting LDAP user processing at: {time}", DateTimeOffset.Now);
-                await ProcessLdapUsersAsync();
-                _logger.LogInformation("Completed LDAP user processing at: {time}", DateTimeOffset.Now);
-                
-                if (!_isDevelopment)
+                while (!stoppingToken.IsCancellationRequested)
                 {
-                    // In production, schedule next run for 8 AM
-                    var now = DateTime.Now;
-                    var nextRun = now.Date.AddDays(1).AddHours(8);
-                    var delay = nextRun - now;
+                    _logger.LogInformation("Starting LDAP user processing at: {time}", DateTimeOffset.Now);
+                    await ProcessLdapUsersAsync();
+                    _logger.LogInformation("Completed LDAP user processing at: {time}", DateTimeOffset.Now);
                     
-                    _logger.LogInformation("Next run scheduled for: {nextRun}", nextRun);
-                    await Task.Delay(delay, stoppingToken);
+                    if (!_isDevelopment)
+                    {
+                        // In production, schedule next run for 8 AM
+                        var now = DateTime.Now;
+                        var nextRun = now.Date.AddDays(1).AddHours(8);
+                        var delay = nextRun - now;
+                        
+                        _logger.LogInformation("Next run scheduled for: {nextRun}", nextRun);
+                        await Task.Delay(delay, stoppingToken);
+                    }
+                    else
+                    {
+                        _logger.LogInformation("Development mode: Exiting after one iteration");
+                        break;
+                    }
                 }
-                else
-                {
-                    _logger.LogInformation("Development mode: Exiting after one iteration");
-                }
+            }
+            catch (OperationCanceledException)
+            {
+                _logger.LogInformation("Worker stopping due to cancellation");
+                throw;
             }
             catch (Exception ex)
             {
@@ -75,9 +90,15 @@ namespace CwrStatusChecker.Service
         private async Task ProcessLdapUsersAsync()
         {
             using var scope = _scopeFactory.CreateScope();
-            var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            var ldapService = scope.ServiceProvider.GetRequiredService<ILdapService>();
-            var emailService = scope.ServiceProvider.GetRequiredService<IEmailService>();
+            var context = scope.ServiceProvider.GetService<ApplicationDbContext>();
+            var ldapService = scope.ServiceProvider.GetService<ILdapService>();
+            var emailService = scope.ServiceProvider.GetService<IEmailService>();
+
+            if (context == null || ldapService == null || emailService == null)
+            {
+                _logger.LogError("Required services not available");
+                return;
+            }
 
             _logger.LogInformation("Starting to process LDAP endpoints");
             
@@ -86,7 +107,7 @@ namespace CwrStatusChecker.Service
                 try
                 {
                     _logger.LogInformation("Processing LDAP endpoint: {endpoint}", endpoint);
-                    var ldapUsers = ldapService.GetUsersFromLdap(endpoint);
+                    var ldapUsers = await ldapService.GetUsersFromLdap(endpoint);
                     _logger.LogInformation("Retrieved {count} users from LDAP endpoint: {endpoint}", ldapUsers.Count, endpoint);
 
                     var existingUsers = await context.Users

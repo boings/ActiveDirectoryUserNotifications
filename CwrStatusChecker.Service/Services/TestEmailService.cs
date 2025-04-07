@@ -14,6 +14,12 @@ namespace CwrStatusChecker.Service.Services
             _logger = logger;
         }
 
+        public async Task SendEmailAsync(string to, string subject, string body)
+        {
+            _logger.LogInformation("TEST EMAIL: To: {To}, Subject: {Subject}, Body: {Body}", to, subject, body);
+            await Task.CompletedTask;
+        }
+
         public async Task SendExpirationNotificationAsync(User user)
         {
             _logger.LogInformation("TEST EMAIL: Account Expiration Notice for {Username}. Account expires on {ExpirationDate}", 

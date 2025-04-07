@@ -7,14 +7,6 @@ using CwrStatusChecker.Models;
 
 namespace CwrStatusChecker.Service.Services
 {
-    public interface IEmailService
-    {
-        Task SendExpirationNotificationAsync(User user);
-        Task SendPasswordChangeNotificationAsync(User user);
-        Task SendDisableNotificationAsync(User user);
-        Task SendArchiveNotificationAsync(User user);
-    }
-
     public class EmailService : IEmailService
     {
         private readonly string _smtpServer;
@@ -30,6 +22,16 @@ namespace CwrStatusChecker.Service.Services
             _smtpUsername = smtpUsername;
             _smtpPassword = smtpPassword;
             _fromEmail = fromEmail;
+        }
+
+        public async Task SendEmailAsync(string to, string subject, string body)
+        {
+            var message = new MimeMessage();
+            message.From.Add(new MailboxAddress("Account Management", _fromEmail));
+            message.To.Add(new MailboxAddress("", to));
+            message.Subject = subject;
+            message.Body = new TextPart("plain") { Text = body };
+            await SendEmailAsync(message);
         }
 
         public async Task SendExpirationNotificationAsync(User user)
